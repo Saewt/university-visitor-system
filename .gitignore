@@ -1,0 +1,70 @@
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+*.pyc
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+.env.local
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+*.suo
+*.user
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# AI Tools & Assistants
+.claude/
+.agent/
+.agents/
+.codex/
+.gemini/
+.kiro/
+.opencode/
+.qoder/
+.playwright-mcp/
+.cursor/
+.copilot/
+.aider/
+Continue/
+*.claude*
+
+# Test Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+*.cover
+.hypothesis/
+
+# Build & Logs
+*.log
+logs/
+*.tgz
+.eslintcache
