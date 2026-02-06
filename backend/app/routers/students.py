@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc
 from typing import List, Optional, Dict, Any
@@ -8,10 +8,32 @@ from ..database import get_db, turkey_now
 from ..models import Student, Department, User
 from ..schemas import StudentCreate, StudentUpdate, Student as StudentSchema, StudentList
 from ..routers.auth import get_current_user, require_admin
-from ..services.telegram import send_tour_notification
+from ..services.telegram import _send_notification_async
 from ..services.sse import manager
 
 router = APIRouter()
+
+
+def require_student_access(student_id: int, current_user: User, db: Session) -> Student:
+    """
+    Helper function to check if user has access to a student.
+    Admins can access any student, teachers can only access their own.
+    """
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found"
+        )
+
+    # Teachers can only access students they created
+    if current_user.role != "admin" and student.created_by_user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this student"
+        )
+
+    return student
 
 
 def broadcast_student_event(event_type: str, student_data: dict):
@@ -128,6 +150,12 @@ async def get_students(
         count_query = count_query.filter(Student.wants_tour == wants_tour)
 
     if teacher:
+        # Only admins can filter by teacher
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can filter by teacher"
+            )
         query = query.filter(User.username == teacher)
         count_query = count_query.join(User, Student.created_by_user_id == User.id).filter(User.username == teacher)
 
@@ -569,95 +597,103 @@ async def create_mock_data(
                 student_idx += 1
 
     elif demo:
-        # Create comprehensive demo data spanning 30 days
-        total_students = 150
-        today = turkey_now().replace(hour=12, minute=0, second=0, microsecond=0)  # Use noon for consistent date
+        # Create comprehensive demo data spanning 14 days with realistic hourly distribution
+        # At least 70 students per day
+        days_span = 14
+        students_per_day_min = 70
+        students_per_day_max = 95
 
-        # Define daily targets with realistic patterns
-        # Weekdays: higher, Weekends: lower, with some variation
-        daily_targets = []
-        for days_ago in range(29, -1, -1):
+        total_students = days_span * students_per_day_min  # Minimum 980 students
+        today = turkey_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Realistic hourly distribution for each day
+        # 8-10 AM: Less crowded (early arrivals)
+        # 10-12 AM: Peak morning
+        # 12-13 PM: Lunch dip
+        # 13-16 PM: Peak afternoon
+        # 16-17 PM: Moderate (late arrivals)
+        hourly_distribution = {
+            8: 5,     # 8:00-9:00: Early morning - few
+            9: 8,     # 9:00-10:00: Still ramping up
+            10: 12,   # 10:00-11:00: Peak morning start
+            11: 14,   # 11:00-12:00: Peak morning
+            12: 8,    # 12:00-13:00: Lunch dip
+            13: 13,   # 13:00-14:00: Afternoon peak start
+            14: 15,   # 14:00-15:00: Peak afternoon
+            15: 12,   # 15:00-16:00: Still busy
+            16: 8,    # 16:00-17:00: Late afternoon tapering
+        }
+        # Total per base day: ~95 students
+
+        # Create students for each day
+        student_idx = 0
+        for days_ago in range(days_span - 1, -1, -1):
             date = today - timedelta(days=days_ago)
             day_of_week = date.weekday()
 
-            # Weekday vs weekend pattern
-            if day_of_week >= 5:  # Weekend
-                base_count = randint(1, 3)
-            else:  # Weekday
-                base_count = randint(4, 8)
+            # Adjust for weekends (slightly fewer on Saturday/Sunday)
+            weekend_factor = 0.7 if day_of_week >= 5 else 1.0
 
-            # Add some randomness
-            daily_targets.append(max(1, base_count + randint(-2, 2)))
+            for hour, base_count in hourly_distribution.items():
+                # Apply weekend factor and add some randomness
+                actual_count = int(base_count * weekend_factor) + randint(-2, 2)
+                actual_count = max(2, actual_count)  # At least 2 per hour
 
-        # Adjust to match total
-        total_target = sum(daily_targets)
-        if total_target < total_students:
-            # Add more to busy days
-            for i in range(total_students - total_target):
-                daily_targets[i % len(daily_targets)] += 1
+                for _ in range(actual_count):
+                    # Random minute and second within the hour
+                    minute = randint(0, 59)
+                    second = randint(0, 59)
 
-        # Create students distributed across days (iterate in reverse to match days_ago)
-        student_idx = 0
-        for days_ago in range(29, -1, -1):
-            daily_count = daily_targets[29 - days_ago]  # Get count from the correct position
-            for _ in range(daily_count):
-                if student_idx >= total_students:
-                    break
+                    # Select department based on weights
+                    dept = choice(dept_weights) if dept_weights else choice(departments)
 
-                date = today - timedelta(days=days_ago)
-                hour = randint(9, 17)  # 9 AM to 5 PM
-                minute = randint(0, 59)
+                    # YKS type based on department
+                    dept_name = dept.name.lower()
+                    if "tıp" in dept_name or "eczacılık" in dept_name or "diş" in dept_name:
+                        yks_type = "SAYISAL"
+                        yks_score = randint(380, 480)
+                    elif "hukuk" in dept_name or "edebiyat" in dept_name:
+                        yks_type = "SOZEL"
+                        yks_score = randint(400, 500)
+                    elif "işletme" in dept_name or "ekonomi" in dept_name or "psikoloji" in dept_name:
+                        yks_type = "EA"
+                        yks_score = randint(350, 450)
+                    else:
+                        yks_type = choice(["SAYISAL", "SOZEL", "EA", "DIL"])
+                        yks_score = randint(320, 450)
 
-                # Select department based on weights
-                dept = choice(dept_weights) if dept_weights else choice(departments)
+                    # Realistic ranking based on score
+                    if yks_score > 450:
+                        ranking = randint(1000, 15000)
+                    elif yks_score > 400:
+                        ranking = randint(15000, 50000)
+                    elif yks_score > 350:
+                        ranking = randint(50000, 150000)
+                    else:
+                        ranking = randint(150000, 400000)
 
-                # YKS type based on department
-                dept_name = dept.name.lower()
-                if "tıp" in dept_name or "eczacılık" in dept_name or "diş" in dept_name:
-                    yks_type = "SAYISAL"
-                    yks_score = randint(380, 480)
-                elif "hukuk" in dept_name or "edebiyat" in dept_name:
-                    yks_type = "SOZEL"
-                    yks_score = randint(400, 500)
-                elif "işletme" in dept_name or "ekonomi" in dept_name or "psikoloji" in dept_name:
-                    yks_type = "EA"
-                    yks_score = randint(350, 450)
-                else:
-                    yks_type = choice(["SAYISAL", "SOZEL", "EA", "DIL"])
-                    yks_score = randint(320, 450)
+                    # Tour request probability (35% want tour)
+                    wants_tour = randint(1, 100) <= 35
 
-                # Realistic ranking based on score
-                if yks_score > 450:
-                    ranking = randint(1000, 15000)
-                elif yks_score > 400:
-                    ranking = randint(15000, 50000)
-                elif yks_score > 350:
-                    ranking = randint(50000, 150000)
-                else:
-                    ranking = randint(150000, 400000)
+                    created_date = date.replace(hour=hour, minute=minute, second=second, microsecond=0)
 
-                # Tour request probability (35% want tour)
-                wants_tour = randint(1, 100) <= 35
-
-                created_date = date.replace(hour=hour, minute=minute, second=0, microsecond=0)
-
-                student = Student(
-                    first_name=choice(first_names),
-                    last_name=choice(last_names),
-                    email=choice(emails) if randint(1, 10) > 2 else None,
-                    phone=f"05{randint(31, 55)}{randint(100, 999)}{randint(10, 99)}{randint(10, 99)}" if randint(1, 10) > 2 else None,
-                    high_school=choice(high_schools),
-                    ranking=ranking,
-                    yks_score=yks_score,
-                    yks_type=yks_type,
-                    department_id=dept.id,
-                    wants_tour=wants_tour,
-                    created_at=created_date,
-                    created_by_user_id=choice(teachers).id
-                )
-                db.add(student)
-                created_students.append(student)
-                student_idx += 1
+                    student = Student(
+                        first_name=choice(first_names),
+                        last_name=choice(last_names),
+                        email=choice(emails) if randint(1, 10) > 2 else None,
+                        phone=f"05{randint(31, 55)}{randint(100, 999)}{randint(10, 99)}{randint(10, 99)}" if randint(1, 10) > 2 else None,
+                        high_school=choice(high_schools),
+                        ranking=ranking,
+                        yks_score=yks_score,
+                        yks_type=yks_type,
+                        department_id=dept.id,
+                        wants_tour=wants_tour,
+                        created_at=created_date,
+                        created_by_user_id=choice(teachers).id
+                    )
+                    db.add(student)
+                    created_students.append(student)
+                    student_idx += 1
 
     elif weekly:
         # Weekly test data - 70 students across 7 days for weekly testing
@@ -819,18 +855,15 @@ async def get_student(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
-        )
+    # Check access using helper
+    student = require_student_access(student_id, current_user, db)
     return StudentSchema.from_orm(student)
 
 
 @router.post("", response_model=StudentSchema, status_code=status.HTTP_201_CREATED)
 async def create_student(
     student_data: StudentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -858,14 +891,13 @@ async def create_student(
     # Load department for response
     db.refresh(new_student)
 
-    # Send tour notification if requested
+    # Send tour notification if requested (background task)
     if new_student.wants_tour and new_student.department_id:
-        try:
-            send_tour_notification(new_student, db)
-            new_student.tour_sent = True
-            db.commit()
-        except Exception as e:
-            print(f"Failed to send tour notification: {e}")
+        from ..services.telegram import send_tour_notification
+        notification_data = send_tour_notification(new_student, db)
+        if notification_data:
+            # Add background task to send notification
+            background_tasks.add_task(notification_data)
 
     # Broadcast SSE event
     broadcast_student_event("student_created", {
@@ -883,15 +915,12 @@ async def create_student(
 async def update_student(
     student_id: int,
     student_data: StudentUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
-        )
+    # Check access using helper
+    student = require_student_access(student_id, current_user, db)
 
     # Verify department exists if provided
     if student_data.department_id:
@@ -912,14 +941,15 @@ async def update_student(
     db.commit()
     db.refresh(student)
 
-    # Send tour notification if newly requested and not yet sent
+    # Send tour notification if newly requested and not yet sent (background task)
     if student.wants_tour and not student.tour_sent and student.department_id:
-        try:
-            send_tour_notification(student, db)
+        from ..services.telegram import send_tour_notification
+        notification_data = send_tour_notification(student, db)
+        if notification_data:
+            # Add background task to send notification
+            background_tasks.add_task(notification_data)
             student.tour_sent = True
             db.commit()
-        except Exception as e:
-            print(f"Failed to send tour notification: {e}")
 
     # Broadcast SSE event
     broadcast_student_event("student_updated", {

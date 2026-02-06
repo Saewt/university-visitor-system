@@ -221,22 +221,40 @@ def _get_export_data(db: Session, start_date: Optional[datetime] = None,
 
     total_students = query.count()
 
-    # Today's count
+    # Today's count - apply date filters for consistency
     today_start = turkey_now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_count = db.query(func.count(Student.id)).filter(
-        Student.created_at >= today_start
-    ).scalar() or 0
+    today_end = turkey_now().replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Build today's query with same filters
+    today_query = db.query(Student).filter(Student.created_at >= today_start)
+
+    # Only include today's records if they fall within the date range
+    if start_date:
+        today_query = today_query.filter(Student.created_at >= start_date)
+    if end_date:
+        today_query = today_query.filter(Student.created_at <= end_date)
+    if department_id:
+        today_query = today_query.filter(Student.department_id == department_id)
+
+    today_count = today_query.count()
 
     # Tour requests
     tour_requests = query.filter(Student.wants_tour == True).count()
 
-    # By department
+    # By department - apply department_id filter if specified
+    dept_filter = []
+    if start_date:
+        dept_filter.append(Student.created_at >= start_date)
+    if end_date:
+        dept_filter.append(Student.created_at <= end_date)
+    if department_id:
+        dept_filter.append(Department.id == department_id)
+
     dept_results = db.query(
         Department.name,
         func.count(Student.id).label("count")
     ).outerjoin(Student, Department.id == Student.department_id).filter(
-        Student.created_at >= start_date if start_date else True,
-        Student.created_at <= end_date if end_date else True
+        *dept_filter
     ).group_by(Department.id, Department.name).order_by(
         desc("count")
     ).all()
@@ -247,14 +265,18 @@ def _get_export_data(db: Session, start_date: Optional[datetime] = None,
     ]
 
     # By YKS type
-    type_results = db.query(
+    type_query = db.query(Student).filter(Student.yks_type.isnot(None))
+    if start_date:
+        type_query = type_query.filter(Student.created_at >= start_date)
+    if end_date:
+        type_query = type_query.filter(Student.created_at <= end_date)
+    if department_id:
+        type_query = type_query.filter(Student.department_id == department_id)
+
+    type_results = type_query.group_by(Student.yks_type).with_entities(
         Student.yks_type,
         func.count(Student.id).label("count")
-    ).filter(
-        Student.yks_type.isnot(None),
-        Student.created_at >= start_date if start_date else True,
-        Student.created_at <= end_date if end_date else True
-    ).group_by(Student.yks_type).all()
+    ).all()
 
     by_type = [
         {"yks_type": row.yks_type, "count": row.count}

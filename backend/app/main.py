@@ -1,10 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
-from fastapi import status
 from contextlib import asynccontextmanager
-from fastapi.responses import Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from .config import get_settings
 from .database import init_db
@@ -12,6 +14,9 @@ from .routers import students, stats, export, auth, management
 from .services.sse import manager
 
 settings = get_settings()
+
+# Rate limiter setup
+limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager
@@ -30,8 +35,22 @@ app = FastAPI(
     title="University Visitor Registration API",
     description="API for university open day visitor registration system",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
+
+# Add slowapi middleware
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+# Rate limit exception handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={
+            "detail": "Çok fazla başarısız giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin."
+        }
+    )
 
 # CORS middleware
 app.add_middleware(
@@ -76,10 +95,29 @@ async def api_health_check():
 
 
 @app.get("/api/events")
-async def events():
-    """SSE endpoint for real-time updates"""
+async def events(
+    request: Request,
+    token: str = Query(..., description="JWT authentication token")
+):
+    """SSE endpoint for real-time updates (requires authentication)"""
+    from .routers.auth import get_current_user_from_token
+    from sqlalchemy.orm import Session
+    from .database import get_db
+
+    # Verify token
+    db = next(get_db())
+    try:
+        current_user = await get_current_user_from_token(token, db)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+    finally:
+        db.close()
+
     return StreamingResponse(
-        manager.event_generator(),
+        manager.event_generator(current_user.id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

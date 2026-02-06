@@ -293,7 +293,13 @@ async def get_tour_requests_stats(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
+    # First get all departments with their IDs
+    departments = db.query(Department.id, Department.name).all()
+    dept_id_to_name = {dept.id: dept.name for dept in departments}
+
+    # Get tour request counts by department
     results = db.query(
+        Department.id.label("dept_id"),
         Department.name.label("department_name"),
         func.count(Student.id).label("tour_requests")
     ).outerjoin(
@@ -306,8 +312,7 @@ async def get_tour_requests_stats(
     department_stats = {}
     for row in results:
         total = db.query(func.count(Student.id)).filter(
-            Student.department_id == Department.id,
-            Department.name == row.department_name
+            Student.department_id == row.dept_id
         ).scalar() or 0
         department_stats[row.department_name] = TourRequestStats(
             department_name=row.department_name,
@@ -446,6 +451,7 @@ async def get_all_stats(
 
     # Tour requests
     tour_results = db.query(
+        Department.id.label("dept_id"),
         Department.name.label("department_name"),
         func.count(Student.id).label("tour_requests")
     ).outerjoin(Student, Department.id == Student.department_id).filter(
@@ -454,7 +460,7 @@ async def get_all_stats(
     tour_requests = []
     for row in tour_results:
         total = db.query(func.count(Student.id)).filter(
-            Student.department_id == Department.id
+            Student.department_id == row.dept_id
         ).scalar() or 0
         tour_requests.append(TourRequestStats(
             department_name=row.department_name,

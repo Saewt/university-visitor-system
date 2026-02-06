@@ -1,14 +1,16 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from functools import lru_cache
 from pathlib import Path
+import os
 
 
 class Settings(BaseSettings):
     # Database - SQLite (file-based)
     database_url: str = "sqlite:///./university_visitors.db"
 
-    # JWT
-    secret_key: str = "your-secret-key-here-change-in-production"
+    # JWT - SECRET_KEY with development default
+    secret_key: str = Field(default="dev-secret-key-change-in-production", env="SECRET_KEY")
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
 

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 // Create axios instance
 const api = axios.create({
@@ -295,7 +295,19 @@ export const managementAPI = {
 // SSE Connection
 export const connectSSE = (onMessage, onError) => {
   const token = getToken()
-  const url = new URL(`${API_BASE_URL}/events`, window.location.origin)
+  if (!token) {
+    console.error('No token available for SSE connection')
+    if (onError) onError(new Error('No authentication token'))
+    return null
+  }
+
+  // Construct URL with token as query parameter
+  const baseUrl = API_BASE_URL.startsWith('http')
+    ? API_BASE_URL
+    : window.location.origin + API_BASE_URL
+
+  const url = new URL(`${baseUrl}/events`)
+  url.searchParams.append('token', token)
 
   const eventSource = new EventSource(url)
 

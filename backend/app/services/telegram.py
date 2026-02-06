@@ -38,7 +38,12 @@ async def send_telegram_message(chat_id: str, message: str) -> bool:
 
 
 def send_tour_notification(student: Student, db: Session) -> bool:
-    """Send tour request notification to the department's Telegram group"""
+    """
+    Send tour request notification to the department's Telegram group.
+
+    NOTE: This function is synchronous but should be called from a background task
+    to avoid blocking the main event loop. Use FastAPI's BackgroundTasks.
+    """
     if not student.department_id:
         print("No department specified, skipping notification")
         return False
@@ -65,5 +70,11 @@ def send_tour_notification(student: Student, db: Session) -> bool:
 ⏰ <b>Kayıt Zamanı:</b> {student.created_at.strftime('%d.%m.%Y %H:%M')}
 """
 
-    import asyncio
-    return asyncio.run(send_telegram_message(department.telegram_chat_id, message))
+    # Return the async function for background task execution
+    # The caller should use BackgroundTasks to run this
+    return _send_notification_async(department.telegram_chat_id, message)
+
+
+async def _send_notification_async(chat_id: str, message: str) -> bool:
+    """Async wrapper for sending Telegram notification"""
+    return await send_telegram_message(chat_id, message)

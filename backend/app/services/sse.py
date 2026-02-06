@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional
 from fastapi import Request
 
 
@@ -8,34 +8,37 @@ class SSEManager:
     """Manages Server-Sent Events connections for real-time updates"""
 
     def __init__(self):
-        self._clients: List[asyncio.Queue] = []
+        self._clients: Dict[asyncio.Queue, Optional[int]] = {}  # queue -> user_id mapping
 
-    async def subscribe(self):
+    async def subscribe(self, user_id: Optional[int] = None):
         """Subscribe a new client to SSE events"""
         queue = asyncio.Queue()
-        self._clients.append(queue)
+        self._clients[queue] = user_id
         return queue
 
     def unsubscribe(self, queue: asyncio.Queue):
         """Unsubscribe a client from SSE events"""
         if queue in self._clients:
-            self._clients.remove(queue)
+            del self._clients[queue]
 
     def broadcast(self, event: Dict):
         """Broadcast an event to all connected clients"""
         message = f"data: {json.dumps(event)}\n\n"
-        for client in self._clients[:]:  # Create a copy to avoid modification during iteration
+        for queue in list(self._clients.keys()):  # Create a copy to avoid modification during iteration
             try:
                 # Try to put message in queue without blocking
-                client.put_nowait(message)
+                queue.put_nowait(message)
             except asyncio.QueueFull:
                 # Remove client if queue is full (disconnected)
-                self._clients.remove(client)
+                self.unsubscribe(queue)
+            except KeyError:
+                # Client was already removed
+                pass
 
-    async def event_generator(self):
+    async def event_generator(self, user_id: Optional[int] = None):
         """Generate SSE events for connected clients"""
         try:
-            queue = await self.subscribe()
+            queue = await self.subscribe(user_id)
             while True:
                 message = await queue.get()
                 yield message

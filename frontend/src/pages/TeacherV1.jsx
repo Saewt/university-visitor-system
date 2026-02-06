@@ -455,6 +455,7 @@ function TeacherDashboard({ user, onLogout }) {
             <div style={{
               background: 'var(--bg-card)',
               borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border-color)',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               position: 'sticky',
               top: '80px',
@@ -506,7 +507,7 @@ function TeacherDashboard({ user, onLogout }) {
                         width: '100%',
                         padding: '12px 16px',
                         fontSize: '14px',
-                        border: 'none',
+                        border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-input)',
                         background: 'var(--bg-input)',
                         color: 'var(--text-primary)',
@@ -532,7 +533,7 @@ function TeacherDashboard({ user, onLogout }) {
                         width: '100%',
                         padding: '12px 16px',
                         fontSize: '14px',
-                        border: 'none',
+                        border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-input)',
                         background: 'var(--bg-input)',
                         color: 'var(--text-primary)',
@@ -560,7 +561,7 @@ function TeacherDashboard({ user, onLogout }) {
                       width: '100%',
                       padding: '12px 16px',
                       fontSize: '14px',
-                      border: 'none',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-input)',
                       background: duplicateWarning?.has_duplicates ? '#FFF7ED' : 'var(--bg-input)',
                       color: 'var(--text-primary)',
@@ -587,7 +588,7 @@ function TeacherDashboard({ user, onLogout }) {
                       width: '100%',
                       padding: '12px 16px',
                       fontSize: '14px',
-                      border: 'none',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-input)',
                       background: duplicateWarning?.has_duplicates ? '#FFF7ED' : 'var(--bg-input)',
                       color: 'var(--text-primary)',
@@ -614,7 +615,7 @@ function TeacherDashboard({ user, onLogout }) {
                       width: '100%',
                       padding: '12px 16px',
                       fontSize: '14px',
-                      border: 'none',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-input)',
                       background: 'var(--bg-input)',
                       color: 'var(--text-primary)',
@@ -642,7 +643,7 @@ function TeacherDashboard({ user, onLogout }) {
                         width: '100%',
                         padding: '12px 16px',
                         fontSize: '14px',
-                        border: 'none',
+                        border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-input)',
                         background: 'var(--bg-input)',
                         color: 'var(--text-primary)',
@@ -668,7 +669,7 @@ function TeacherDashboard({ user, onLogout }) {
                         width: '100%',
                         padding: '12px 16px',
                         fontSize: '14px',
-                        border: 'none',
+                        border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-input)',
                         background: 'var(--bg-input)',
                         color: 'var(--text-primary)',
@@ -691,14 +692,14 @@ function TeacherDashboard({ user, onLogout }) {
                         width: '100%',
                         padding: '12px 16px',
                         fontSize: '14px',
-                        border: 'none',
+                        border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-input)',
                         background: 'var(--bg-input)',
                         color: 'var(--text-primary)',
                         outline: 'none',
                         cursor: 'pointer',
                         appearance: 'none',
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234318FF' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230F172A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
                         backgroundRepeat: 'no-repeat',
                         backgroundPosition: 'right 14px center'
                       }}
@@ -727,14 +728,14 @@ function TeacherDashboard({ user, onLogout }) {
                       width: '100%',
                       padding: '12px 16px',
                       fontSize: '14px',
-                      border: 'none',
+                      border: '1px solid var(--border-color)',
                       borderRadius: 'var(--radius-input)',
                       background: 'var(--bg-input)',
                       color: 'var(--text-primary)',
                       outline: 'none',
                       cursor: 'pointer',
                       appearance: 'none',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234318FF' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%230F172A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
                       backgroundRepeat: 'no-repeat',
                       backgroundPosition: 'right 14px center'
                     }}
@@ -746,10 +747,10 @@ function TeacherDashboard({ user, onLogout }) {
                   </select>
                 </div>
 
-                {/* Campus Tour - Minimal Segmented Control */}
+                {/* Campus Tour - Admin Style Segmented Control */}
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px', letterSpacing: '0.2px' }}>Kampüs Turu</label>
-                  <div style={{ display: 'inline-flex', background: 'var(--bg-input)', borderRadius: '12px', padding: '4px' }}>
+                  <div style={{ display: 'inline-flex', background: 'var(--hover-bg)', borderRadius: '8px', padding: '4px' }}>
                     <button
                       type="button"
                       onClick={() => setFormData(prev => ({ ...prev, wants_tour: true }))}
@@ -758,9 +759,9 @@ function TeacherDashboard({ user, onLogout }) {
                         fontSize: '13px',
                         fontWeight: '500',
                         border: 'none',
-                        borderRadius: '10px',
-                        background: formData.wants_tour ? 'var(--brand-primary)' : 'transparent',
-                        color: formData.wants_tour ? 'white' : 'var(--text-secondary)',
+                        borderRadius: '6px',
+                        background: formData.wants_tour ? '#0F172A' : 'transparent',
+                        color: formData.wants_tour ? 'white' : 'var(--text-primary)',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
                       }}
@@ -775,9 +776,9 @@ function TeacherDashboard({ user, onLogout }) {
                         fontSize: '13px',
                         fontWeight: '500',
                         border: 'none',
-                        borderRadius: '10px',
-                        background: !formData.wants_tour ? 'var(--brand-primary)' : 'transparent',
-                        color: !formData.wants_tour ? 'white' : 'var(--text-secondary)',
+                        borderRadius: '6px',
+                        background: !formData.wants_tour ? '#0F172A' : 'transparent',
+                        color: !formData.wants_tour ? 'white' : 'var(--text-primary)',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
                       }}
@@ -787,7 +788,7 @@ function TeacherDashboard({ user, onLogout }) {
                   </div>
                 </div>
 
-                {/* Submit Button - Brand Primary */}
+                {/* Submit Button - Navy Gradient */}
                 <button
                   type="submit"
                   disabled={submitting || !formData.first_name || !formData.last_name}
@@ -796,10 +797,11 @@ function TeacherDashboard({ user, onLogout }) {
                     padding: '16px',
                     fontSize: '14px',
                     fontWeight: '600',
-                    background: submitting || !formData.first_name || !formData.last_name ? '#CBD5E1' : 'var(--brand-primary)',
+                    background: submitting || !formData.first_name || !formData.last_name ? '#CBD5E1' : 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
                     color: 'white',
                     border: 'none',
-                    borderRadius: 'var(--radius-input)',
+                    borderRadius: '8px',
+                    boxShadow: submitting || !formData.first_name || !formData.last_name ? 'none' : '0 2px 8px rgba(15, 23, 42, 0.2)',
                     cursor: submitting || !formData.first_name || !formData.last_name ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s ease'
                   }}
@@ -815,6 +817,7 @@ function TeacherDashboard({ user, onLogout }) {
             <div style={{
               background: 'var(--bg-card)',
               borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border-color)',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
               overflow: 'hidden',
               display: 'flex',
@@ -975,6 +978,7 @@ function TeacherDashboard({ user, onLogout }) {
             <div style={{
               background: 'var(--bg-card)',
               borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border-color)',
               padding: '80px 40px',
               textAlign: 'center'
             }}>
@@ -993,6 +997,7 @@ function TeacherDashboard({ user, onLogout }) {
             <div style={{
               background: 'var(--bg-card)',
               borderRadius: 'var(--radius-card)',
+              border: '1px solid var(--border-color)',
               padding: '80px 40px',
               textAlign: 'center'
             }}>
@@ -1015,12 +1020,12 @@ function TeacherDashboard({ user, onLogout }) {
                   const setExpanded = (val) => setExpandedCards(prev => ({ ...prev, [dayGroup.date]: val }))
                   const displayStudents = expanded ? students : visibleStudents
 
-                  // YKS Badge Colors - Enterprise Light
+                  // YKS Badge Colors - Admin Design System
                   const yksColors = {
-                    'SAYISAL': { bg: '#E6F0FF', text: '#2B3674', short: 'SAY' },
-                    'SOZEL': { bg: '#FFF7E6', text: '#FF9900', short: 'SÖZ' },
-                    'EA': { bg: '#F3E6FF', text: '#8844FF', short: 'EA' },
-                    'DIL': { bg: '#E6FFFA', text: '#05CD99', short: 'DİL' }
+                    'SAYISAL': { bg: '#F1F5F9', text: '#0F172A', short: 'SAY' },
+                    'SOZEL': { bg: '#FEF3C7', text: '#92400E', short: 'SÖZ' },
+                    'EA': { bg: '#E0E7FF', text: '#3730A3', short: 'EA' },
+                    'DIL': { bg: '#D1FAE5', text: '#065F46', short: 'DİL' }
                   }
 
                   return (
@@ -1029,6 +1034,7 @@ function TeacherDashboard({ user, onLogout }) {
                       style={{
                         background: 'var(--bg-card)',
                         borderRadius: 'var(--radius-card)',
+                        border: '1px solid var(--border-color)',
                         overflow: 'hidden',
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
                       }}

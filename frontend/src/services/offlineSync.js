@@ -7,6 +7,7 @@
  */
 
 import * as offlineStorage from './offlineStorage'
+import { API_BASE_URL } from './api'
 
 let isOnline = navigator.onLine
 let syncInProgress = false
@@ -30,7 +31,7 @@ const checkServerHealth = async () => {
   const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
 
   try {
-    const response = await fetch('/api/health', {
+    const response = await fetch(`${API_BASE_URL}/health`, {
       method: 'GET',
       cache: 'no-store',
       signal: controller.signal,

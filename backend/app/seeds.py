@@ -3,6 +3,7 @@ Seed data for SQLite database.
 This script runs on startup if the database is empty.
 """
 
+import os
 from .database import SessionLocal
 from .models import User, Department, Student
 from passlib.context import CryptContext
@@ -18,30 +19,32 @@ def seed_database():
         # Check if admin user exists
         admin_exists = db.query(User).filter(User.username == "Özgür Güler").first()
         if not admin_exists:
-            # Create default admin user
+            # Use environment variable for admin password if provided
+            admin_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
             admin = User(
                 username="Özgür Güler",
-                password_hash=pwd_context.hash("admin123"),
+                password_hash=pwd_context.hash(admin_password),
                 role="admin"
             )
             db.add(admin)
             db.commit()
-            print("Created default admin user: Özgür Güler / admin123")
+            print("Created default admin user: Özgür Güler")
         else:
             print("Admin user already exists")
 
         # Check if teacher user exists
         teacher_exists = db.query(User).filter(User.username == "Okan").first()
         if not teacher_exists:
-            # Create default teacher user
+            # Use environment variable for teacher password if provided
+            teacher_password = os.getenv("DEFAULT_TEACHER_PASSWORD", "teacher123")
             teacher = User(
                 username="Okan",
-                password_hash=pwd_context.hash("teacher123"),
+                password_hash=pwd_context.hash(teacher_password),
                 role="teacher"
             )
             db.add(teacher)
             db.commit()
-            print("Created default teacher user: Okan / teacher123")
+            print("Created default teacher user: Okan")
         else:
             print("Teacher user already exists")
 

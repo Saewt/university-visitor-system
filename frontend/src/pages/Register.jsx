@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { studentsAPI } from '../services/api'
 
@@ -24,6 +24,9 @@ function Register({ onSuccess }) {
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [checkingDuplicate, setCheckingDuplicate] = useState(false)
 
+  // Ref to store timeout ID for cleanup
+  const debounceTimeoutRef = useRef(null)
+
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -36,6 +39,13 @@ function Register({ onSuccess }) {
       }
     }
     loadDepartments()
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
   }, [])
 
   // Check for duplicates when email or phone changes
@@ -72,11 +82,18 @@ function Register({ onSuccess }) {
 
     // Check duplicates when email or phone changes
     if (name === 'email' || name === 'phone') {
+      // Clear existing timeout
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+
       const email = name === 'email' ? newValue : formData.email
       const phone = name === 'phone' ? newValue : formData.phone
+
       // Debounce duplicate check
-      const timeoutId = setTimeout(() => checkDuplicates(email, phone), 500)
-      return () => clearTimeout(timeoutId)
+      debounceTimeoutRef.current = setTimeout(() => {
+        checkDuplicates(email, phone)
+      }, 500)
     }
   }
 

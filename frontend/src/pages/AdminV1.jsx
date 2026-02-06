@@ -15,6 +15,7 @@ function Admin({ user, onLogout }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDept, setFilterDept] = useState('')
   const [filterTeacher, setFilterTeacher] = useState('')  // Filter by teacher username
+  const [filterDate, setFilterDate] = useState('')  // Filter by specific date (YYYY-MM-DD)
   const [sortColumn, setSortColumn] = useState('created_at')
   const [sortDirection, setSortDirection] = useState('desc')
 
@@ -41,15 +42,35 @@ function Admin({ user, onLogout }) {
 
   // Period filter for dashboard stats
   const [periodFilter, setPeriodFilter] = useState('today')  // 'today' | 'week' | 'all'
+  const [allTimeStats, setAllTimeStats] = useState(null)  // Always show all-time total
 
-  const loadStudents = useCallback(async (page = 1, search = '', dept = '', teacher = '', sortBy = 'created_at', sortOrder = 'desc') => {
+  const loadStudents = useCallback(async (page = 1, search = '', dept = '', teacher = '', sortBy = 'created_at', sortOrder = 'desc', selectedDate = '') => {
     setStudentsLoading(true)
     try {
       const skip = (page - 1) * pageSize
       const params = { skip, limit: pageSize, sort_by: sortBy, sort_order: sortOrder }
       if (search) params.search = search
       if (dept) params.department_id = parseInt(dept)
-      if (teacher) params.teacher = teacher  // Note: backend needs to support this
+      if (teacher) params.teacher = teacher
+
+      // Add date filter - handle both Date objects and YYYY-MM-DD strings
+      if (selectedDate) {
+        let date
+        if (selectedDate instanceof Date) {
+          date = selectedDate
+        } else if (typeof selectedDate === 'string' && selectedDate.includes('-')) {
+          const [year, month, day] = selectedDate.split('-').map(Number)
+          date = new Date(year, month - 1, day)
+        } else {
+          date = new Date(selectedDate)
+        }
+        if (!isNaN(date.getTime())) {
+          const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+          const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)
+          params.start_date = startOfDay.toISOString()
+          params.end_date = endOfDay.toISOString()
+        }
+      }
 
       const response = await studentsAPI.getAll(params)
       // New format: { data: [...], total: N, skip: N, limit: N }
@@ -70,16 +91,32 @@ function Admin({ user, onLogout }) {
     }
   }, [pageSize])
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (skipStats = false) => {
     try {
-      const [statsData, deptsData, duplicatesData] = await Promise.all([
-        statsAPI.getAll(),
+      const baseRequests = [
         studentsAPI.getDepartments(),
-        statsAPI.getDuplicates(50)
-      ])
-      setStats(statsData)
-      setDepartments(deptsData)
-      setDuplicates(duplicatesData)
+        statsAPI.getDuplicates(50),
+        studentsAPI.getHistoryDates()
+      ]
+
+      if (skipStats) {
+        // When skipping stats, only 3 results
+        const [deptsData, duplicatesData, datesData] = await Promise.all(baseRequests)
+        setDepartments(deptsData)
+        setDuplicates(duplicatesData)
+        setHistoryDates(datesData)
+      } else {
+        // When loading stats, 4 results
+        const [statsData, deptsData, duplicatesData, datesData] = await Promise.all([
+          statsAPI.getAll(),
+          ...baseRequests
+        ])
+        setStats(statsData)
+        setDepartments(deptsData)
+        setDuplicates(duplicatesData)
+        setHistoryDates(datesData)
+      }
+
       // Load initial students page
       loadStudents(1, searchTerm, filterDept, '', sortColumn, sortDirection)
     } catch (e) {
@@ -87,7 +124,7 @@ function Admin({ user, onLogout }) {
     } finally {
       setLoading(false)
     }
-  }, [loadStudents, searchTerm, filterDept])
+  }, [loadStudents, searchTerm, filterDept, sortColumn, sortDirection])
 
   // Load stats based on date filter
   const loadStatsWithFilter = useCallback(async (filter) => {
@@ -97,22 +134,18 @@ function Admin({ user, onLogout }) {
         const statsData = await statsAPI.getAll()
         setStats(statsData)
       } else {
-        // Calculate date range
+        // Calculate date range using YYYY-MM-DD format (backend handles timezone)
         const today = new Date()
-        today.setHours(23, 59, 59, 999)
-        let startDate = new Date()
+        const todayStr = today.toISOString().split('T')[0]  // YYYY-MM-DD in UTC
+        let startStr = todayStr
 
-        if (filter === 'today') {
-          startDate.setHours(0, 0, 0, 0)
-        } else if (filter === 'week') {
+        if (filter === 'week') {
+          const startDate = new Date(today)
           startDate.setDate(today.getDate() - 6)
-          startDate.setHours(0, 0, 0, 0)
+          startStr = startDate.toISOString().split('T')[0]
         }
 
-        const startStr = startDate.toISOString().split('T')[0]
-        const endStr = today.toISOString().split('T')[0]
-
-        const rangeData = await statsAPI.getRangeStats(startStr, endStr)
+        const rangeData = await statsAPI.getRangeStats(startStr, todayStr)
 
         // Transform range data to match stats structure
         setStats({
@@ -166,8 +199,11 @@ function Admin({ user, onLogout }) {
     try {
       const result = await studentsAPI.createMockData(true, false, false)
       showToast(result.message, 'success')
-      loadData()
+      loadStatsWithFilter(periodFilter)
+      const allTime = await statsAPI.getAll()
+      setAllTimeStats(allTime)
       loadHistory()
+      loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
     } catch (e) {
       showToast('Demo veri oluşturulamadı', 'error')
     } finally {
@@ -181,8 +217,11 @@ function Admin({ user, onLogout }) {
     try {
       const result = await studentsAPI.createMockData(false, true, false)
       showToast(result.message, 'success')
-      loadData()
+      loadStatsWithFilter(periodFilter)
+      const allTime = await statsAPI.getAll()
+      setAllTimeStats(allTime)
       loadHistory()
+      loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
     } catch (e) {
       showToast('Load test verisi oluşturulamadı', 'error')
     } finally {
@@ -196,8 +235,11 @@ function Admin({ user, onLogout }) {
     try {
       const result = await studentsAPI.deleteMockData()
       showToast(result.message, 'success')
-      loadData()
+      loadStatsWithFilter(periodFilter)
+      const allTime = await statsAPI.getAll()
+      setAllTimeStats(allTime)
       loadHistory()
+      loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
     } catch (e) {
       showToast('Demo veriler silinemedi', 'error')
     } finally {
@@ -206,8 +248,10 @@ function Admin({ user, onLogout }) {
   }
 
   useEffect(() => {
-    loadData()  // Load initial data (includes departments, duplicates, etc.)
+    loadData(true)  // Load initial data, skip stats to avoid race
     loadStatsWithFilter(periodFilter)
+    // Load all-time stats for the permanent display card
+    statsAPI.getAll().then(setAllTimeStats).catch(console.error)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -228,12 +272,22 @@ function Admin({ user, onLogout }) {
       (event) => {
         if (event.type === 'student_created') {
           showToast('Yeni öğrenci kaydedildi', 'success')
-          loadData()
+          // Refresh stats based on current filter, not all data
+          loadStatsWithFilter(periodFilter)
+          // Refresh all-time stats
+          statsAPI.getAll().then(setAllTimeStats).catch(console.error)
+          // Refresh students list
+          loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
           if (activeTab === 'history') {
             loadHistory()
           }
         } else if (event.type === 'student_updated' || event.type === 'student_deleted') {
-          loadData()
+          // Refresh stats based on current filter, not all data
+          loadStatsWithFilter(periodFilter)
+          // Refresh all-time stats
+          statsAPI.getAll().then(setAllTimeStats).catch(console.error)
+          // Refresh students list
+          loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
           if (activeTab === 'history') {
             loadHistory()
           }
@@ -245,7 +299,7 @@ function Admin({ user, onLogout }) {
     return () => {
       if (source) source.close()
     }
-  }, [loadData, loadHistory, activeTab])
+  }, [loadStatsWithFilter, loadStudents, loadHistory, activeTab, periodFilter, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate])
 
   const handleLogout = async () => {
     await authAPI.logout()
@@ -253,17 +307,43 @@ function Admin({ user, onLogout }) {
     navigate('/login')
   }
 
-  const handleExport = async () => {
+  // Helper to get date range for period
+  const getDateRangeForPeriod = (period) => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    switch (period) {
+      case 'today':
+        return { start: today, end: now }
+      case 'week':
+        const weekStart = new Date(today)
+        weekStart.setDate(today.getDate() - today.getDay()) // Start of week
+        return { start: weekStart, end: now }
+      case 'all':
+      default:
+        return { start: null, end: null }
+    }
+  }
+
+  const handleExport = async (period = 'all') => {
     try {
-      const response = await exportAPI.exportExcel()
+      const { start, end } = getDateRangeForPeriod(period)
+      const params = {}
+      if (start) params.start_date = start.toISOString()
+      if (end) params.end_date = end.toISOString()
+
+      const response = await exportAPI.exportExcel(params)
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `ogrenci_raporu_${new Date().toISOString().split('T')[0]}.xlsx`)
+      const dateStr = new Date().toISOString().split('T')[0]
+      const periodSuffix = period === 'all' ? 'tumu' : period === 'today' ? 'bugun' : 'bu_hafta'
+      link.setAttribute('download', `ogrenci_raporu_${periodSuffix}_${dateStr}.xlsx`)
       document.body.appendChild(link)
       link.click()
       link.remove()
-      showToast('Excel raporu indirildi', 'success')
+      const periodLabel = period === 'all' ? 'Tüm' : period === 'today' ? 'Bugünkü' : 'Bu haftaki'
+      showToast(`${periodLabel} kayıtlar dışa aktarıldı`, 'success')
     } catch (e) {
       showToast('Dışa aktarım başarısız', 'error')
     }
@@ -296,12 +376,12 @@ function Admin({ user, onLogout }) {
   // Reset page when filters change - reload from server
   useEffect(() => {
     setCurrentPage(1)
-    loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection)
-  }, [searchTerm, filterDept, filterTeacher]) // eslint-disable-line react-hooks/exhaustive-deps
+    loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
+  }, [searchTerm, filterDept, filterTeacher, filterDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
-    loadStudents(page, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection)
+    loadStudents(page, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -325,8 +405,23 @@ function Admin({ user, onLogout }) {
     })
   }
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
+  const formatDate = (dateInput) => {
+    // Convert to string if it's already a Date object
+    const dateStr = dateInput instanceof Date ? dateInput.toISOString().split('T')[0] : String(dateInput)
+
+    // Handle YYYY-MM-DD format from API
+    if (dateStr && dateStr.includes('-')) {
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const date = new Date(year, month - 1, day)
+      return date.toLocaleDateString('tr-TR', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      })
+    }
+    // Fallback for other formats
+    const date = new Date(dateInput)
+    if (isNaN(date.getTime())) return dateStr
     return date.toLocaleDateString('tr-TR', {
       day: '2-digit',
       month: 'short',
@@ -382,31 +477,48 @@ function Admin({ user, onLogout }) {
           {/* Header with Export Button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.3px' }}>Admin Paneli</h1>
-            <button onClick={handleExport} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 16px',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: 'white',
-              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.2)'
-            }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Excel Dışa Aktar
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: '#64748B', fontWeight: '500' }}>Dışa Aktar:</span>
+              <div style={{
+                display: 'inline-flex',
+                background: '#F1F5F9',
+                borderRadius: '8px',
+                padding: '4px',
+                gap: '2px'
+              }}>
+                {[
+                  { key: 'all', label: 'Tümü' },
+                  { key: 'today', label: 'Bugün' },
+                  { key: 'week', label: 'Bu Hafta' }
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={() => handleExport(option.key)}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      background: 'transparent',
+                      color: '#64748B',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'white'
+                      e.currentTarget.style.color = '#0F172A'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = '#64748B'
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Modern Segmented Control for Date Filter */}
@@ -462,6 +574,26 @@ function Admin({ user, onLogout }) {
             gap: '16px',
             marginBottom: '16px'
           }}>
+            {/* Tüm Zamanlar Ziyaretçi Card - Always shows all-time total */}
+            <div style={{
+              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+              borderRadius: '12px',
+              padding: '20px 24px',
+              border: '1px solid #0F172A',
+              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+              transition: 'all 0.2s ease'
+            }}
+              onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 6px 20px rgba(15, 23, 42, 0.25)'}
+              onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.15)'}
+            >
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#94A3B8', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Tüm Zamanlar Ziyaretçi
+              </div>
+              <div style={{ fontSize: '36px', fontWeight: '700', color: '#FFFFFF', lineHeight: '1', letterSpacing: '-1px' }}>
+                {allTimeStats?.summary?.total_students ?? stats?.summary?.total_students ?? 0}
+              </div>
+            </div>
+
             {/* Kayıtlar Card */}
             <div style={{
               background: 'white',
@@ -709,8 +841,9 @@ function Admin({ user, onLogout }) {
                       studentsAPI.createMockData(false, false, false)
                         .then(result => {
                           showToast(result.message || '20 öğrenci oluşturuldu', 'success')
-                          loadData()
+                          loadStatsWithFilter(periodFilter)
                           loadHistory()
+                          loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
                         })
                         .catch(() => showToast('Basit test verisi oluşturulamadı', 'error'))
                         .finally(() => setMockLoading(false))
@@ -756,8 +889,9 @@ function Admin({ user, onLogout }) {
                       studentsAPI.createMockData(false, false, true)
                         .then(result => {
                           showToast(result.message || '70 öğrenci oluşturuldu', 'success')
-                          loadData()
+                          loadStatsWithFilter(periodFilter)
                           loadHistory()
+                          loadStudents(1, searchTerm, filterDept, filterTeacher, sortColumn, sortDirection, filterDate)
                         })
                         .catch(() => showToast('Haftalık test verisi oluşturulamadı', 'error'))
                         .finally(() => setMockLoading(false))
@@ -1085,8 +1219,62 @@ function Admin({ user, onLogout }) {
               ))}
             </select>
 
+            {/* Date Filter Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <select
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{
+                  padding: '10px 32px 10px 36px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '8px',
+                  backgroundColor: filterDate ? '#0F172A' : 'white',
+                  color: filterDate ? 'white' : '#0F172A',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8L2 4L6 0L10 4L6 8Z' fill='${encodeURIComponent(filterDate ? '%23FFFFFF' : '%2364748B')}'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 10px center',
+                  minWidth: '160px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <option value="">Tarih Seçiniz</option>
+                {historyDates.map(item => {
+                  const dateStr = item.date_iso || item.date || String(item)
+                  return (
+                    <option key={dateStr} value={dateStr}>{item.date || dateStr} ({item.count || 0} kayıt)</option>
+                  )
+                })}
+              </select>
+              {/* Calendar Icon */}
+              <svg
+                width="14" height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={filterDate ? 'white' : 'currentColor'}
+                strokeWidth="2"
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: filterDate ? 'white' : '#64748B',
+                  pointerEvents: 'none'
+                }}
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+
             {/* Active Filters */}
-            {(searchTerm || filterDept || filterTeacher) && (
+            {(searchTerm || filterDept || filterTeacher || filterDate) && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {searchTerm && (
                   <span style={{
@@ -1151,6 +1339,29 @@ function Admin({ user, onLogout }) {
                     }}>×</span>
                   </span>
                 )}
+                {filterDate && (
+                  <span style={{
+                    fontSize: '12px',
+                    padding: '4px 8px 4px 10px',
+                    background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#92400E',
+                    fontWeight: '600'
+                  }}>
+                    {formatDate(filterDate)}
+                    <span onClick={() => setFilterDate('')} style={{
+                      cursor: 'pointer',
+                      color: '#92400E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: '700'
+                    }}>×</span>
+                  </span>
+                )}
               </div>
             )}
 
@@ -1158,9 +1369,9 @@ function Admin({ user, onLogout }) {
             <div style={{ flex: 1 }} />
 
             {/* Clear Filters Ghost Button */}
-            {(searchTerm || filterDept || filterTeacher) && (
+            {(searchTerm || filterDept || filterTeacher || filterDate) && (
               <button
-                onClick={() => { setSearchTerm(''); setFilterDept(''); setFilterTeacher('') }}
+                onClick={() => { setSearchTerm(''); setFilterDept(''); setFilterTeacher(''); setFilterDate('') }}
                 style={{
                   padding: '10px 16px',
                   fontSize: '13px',
@@ -1179,6 +1390,59 @@ function Admin({ user, onLogout }) {
               </button>
             )}
           </div>
+
+          {/* Date Filter Info Banner */}
+          {filterDate && (
+            <div style={{
+              background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+              border: '1px solid #FCD34D',
+              borderRadius: '10px',
+              padding: '12px 18px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <div>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#78350F' }}>
+                    {formatDate(filterDate)} tarihinin tüm kayıtları
+                  </span>
+                  <span style={{ fontSize: '13px', fontWeight: '500', color: '#92400E', marginLeft: '8px' }}>
+                    ({studentsCount} öğrenci)
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setFilterDate('')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '4px',
+                  color: '#92400E',
+                  transition: 'background 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(146, 64, 14, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* Data Table - Professional Design */}
           <div style={{

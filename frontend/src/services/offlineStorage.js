@@ -40,9 +40,19 @@ export const addOfflineStudent = async (studentData) => {
       synced: false
     }
 
-    await store.add(record)
-    await db.close()
-    return record.id
+    return new Promise((resolve, reject) => {
+      const request = store.add(record)
+
+      request.onsuccess = () => {
+        db.close()
+        resolve(request.result)  // Return the generated ID
+      }
+
+      request.onerror = () => {
+        db.close()
+        reject(request.error)
+      }
+    })
   } catch (error) {
     console.error('Error adding offline student:', error)
     throw error

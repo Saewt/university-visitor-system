@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..database import get_db
 from ..models import User
@@ -15,6 +17,9 @@ router = APIRouter()
 settings = get_settings()
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Rate limiting for login endpoint (5 attempts per 15 minutes)
+limiter = Limiter(key_func=get_remote_address)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -89,25 +94,64 @@ def require_teacher(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+def get_current_user_from_token(token: str, db: Session) -> User:
+    """Helper function to get user from raw token (for SSE authentication)"""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm]
+        )
+        username: str = payload.get("sub")
+        user_id: int = payload.get("user_id")
+        role: str = payload.get("role")
+
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+            )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+
+    return user
+
+
 @router.post("/login", response_model=Token)
-async def login(credentials: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/15minute")
+async def login(
+    request: Request,
+    credentials: UserLogin,
+    db: Session = Depends(get_db)
+):
+    """Login endpoint with rate limiting (5 attempts per 15 minutes per IP)"""
     user = db.query(User).filter(User.username == credentials.username).first()
 
     if not user:
-        print(f"Login failed: User '{credentials.username}' not found")
+        print(f"Login failed: User '{credentials.username}' not found from {get_remote_address(request)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
         )
 
     if not verify_password(credentials.password, user.password_hash):
-        print(f"Login failed: Invalid password for user '{credentials.username}'")
+        print(f"Login failed: Invalid password for user '{credentials.username}' from {get_remote_address(request)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
         )
 
-    print(f"Login successful: {user.username} ({user.role})")
+    print(f"Login successful: {user.username} ({user.role}) from {get_remote_address(request)}")
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
@@ -129,27 +173,3 @@ async def logout():
 @router.get("/me", response_model=UserSchema)
 async def get_me(current_user: User = Depends(get_current_user)):
     return UserSchema.from_orm(current_user)
-
-
-@router.post("/register", response_model=UserSchema)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Check if username exists
-    existing_user = db.query(User).filter(User.username == user_data.username).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already exists"
-        )
-
-    # Create new user
-    new_user = User(
-        username=user_data.username,
-        password_hash=get_password_hash(user_data.password),
-        role=user_data.role
-    )
-
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return UserSchema.from_orm(new_user)
