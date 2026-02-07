@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authAPI, studentsAPI, statsAPI } from '../services/api'
 import Navbar from '../components/Navbar'
-import OfflineIndicator from '../components/OfflineIndicator'
+import OfflineIndicator, { registerToastCallback } from '../components/OfflineIndicator'
+import { ToastContainer } from '../components/Toast'
 import { getPendingCount } from '../services/offlineStorage'
 
 // Form field order for keyboard navigation
@@ -18,6 +19,7 @@ function TeacherDashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(null)
+  const [toasts, setToasts] = useState([])
   const [newStudentId, setNewStudentId] = useState(null)
   const [activeTab, setActiveTab] = useState('form')
   const [history, setHistory] = useState([])
@@ -390,9 +392,21 @@ function TeacherDashboard({ user, onLogout }) {
   }
 
   const showToast = (message, type = 'success') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 3000)
   }
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  // Register toast callback for OfflineIndicator
+  useEffect(() => {
+    registerToastCallback(showToast)
+  }, [])
 
   const formatDateTime = (dateStr) => {
     const date = new Date(dateStr)
@@ -415,7 +429,7 @@ function TeacherDashboard({ user, onLogout }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }} id="main-content">
       <Navbar
         user={user}
         onLogout={onLogout}
@@ -426,26 +440,10 @@ function TeacherDashboard({ user, onLogout }) {
       />
 
       {/* Offline Indicator */}
-      <OfflineIndicator />
+      <OfflineIndicator onShowToast={showToast} />
 
-      {/* Toast */}
-      {toast && (
-        <div className="fade-in-down" style={{
-          position: 'fixed',
-          top: '72px',
-          right: '20px',
-          zIndex: 1000,
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-          fontWeight: '500',
-          background: toast.type === 'success' ? 'var(--success-color)' : toast.type === 'warning' ? '#F59E0B' : 'var(--danger-color)',
-          color: 'white',
-          boxShadow: 'var(--shadow-md)'
-        }}>
-          {toast.message}
-        </div>
-      )}
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
 
       {/* Form Tab - Enterprise Light Design */}
       {activeTab === 'form' && (

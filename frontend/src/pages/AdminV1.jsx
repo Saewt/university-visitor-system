@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { authAPI, studentsAPI, statsAPI, exportAPI, connectSSE } from '../services/api'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import Navbar from '../components/Navbar'
-import Management from '../components/Management'
+import Management, { registerToastCallback as registerManagementToastCallback } from '../components/Management'
+import { ToastContainer } from '../components/Toast'
 
 function Admin({ user, onLogout }) {
   const [stats, setStats] = useState(null)
@@ -11,6 +12,7 @@ function Admin({ user, onLogout }) {
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
+  const [toasts, setToasts] = useState([])
   const [activeTab, setActiveTab] = useState('dashboard')
   const [searchTerm, setSearchTerm] = useState('')
   const [filterDept, setFilterDept] = useState('')
@@ -350,9 +352,21 @@ function Admin({ user, onLogout }) {
   }
 
   const showToast = (message, type = 'success') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 3000)
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 3000)
   }
+
+  const removeToast = (id) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  // Register toast callbacks for child components
+  useEffect(() => {
+    registerManagementToastCallback(showToast)
+  }, [])
 
   const handleSort = (column) => {
     let newDirection = 'asc'
@@ -441,7 +455,7 @@ function Admin({ user, onLogout }) {
   const typeMapping = { 'SAYISAL': 'Sayısal', 'SOZEL': 'Sözel', 'EA': 'EA', 'DIL': 'Dil' }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }} id="main-content">
       <Navbar
         user={user}
         onLogout={handleLogout}
@@ -452,24 +466,8 @@ function Admin({ user, onLogout }) {
         showManagementTab={true}
       />
 
-      {/* Toast */}
-      {toast && (
-        <div className="fade-in-down" style={{
-          position: 'fixed',
-          top: '72px',
-          right: '20px',
-          zIndex: 1000,
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-          fontWeight: '500',
-          background: toast.type === 'success' ? 'var(--success-color)' : 'var(--danger-color)',
-          color: 'white',
-          boxShadow: 'var(--shadow-md)'
-        }}>
-          {toast.message}
-        </div>
-      )}
+      {/* Toast Container */}
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
 
       {/* Dashboard Tab */}
       {activeTab === 'dashboard' && (

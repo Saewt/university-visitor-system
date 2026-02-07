@@ -85,7 +85,7 @@ function DayDashboard({ user, onLogout }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-color)' }} id="main-content">
       <Navbar user={user} onLogout={handleLogout} activeTab="history" onTabChange={(tab) => navigate('/admin')} showTabs={true} showHistoryTab={true} />
 
       {/* Toast */}

@@ -1,12 +1,19 @@
 /**
  * Offline Status Indicator Component
  * Shows online/offline status and pending uploads count
+ * IMPROVED: Uses toast notifications instead of blocking alerts
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { subscribeToNetworkStatus } from '../services/offlineSync'
 import { getPendingCount } from '../services/offlineStorage'
 
-function OfflineIndicator() {
+// Toast callback registry (simple pub/sub for toast notifications)
+let toastCallback = null
+export const registerToastCallback = (callback) => {
+  toastCallback = callback
+}
+
+function OfflineIndicator({ onShowToast }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
@@ -43,8 +50,28 @@ function OfflineIndicator() {
       const result = await triggerSync()
       setPendingCount(prev => Math.max(0, prev - result.success))
 
-      if (result.failed > 0) {
-        alert(`${result.success} öğrenci senkronize edildi, ${result.failed} başarısız.`)
+      // Use toast notification instead of alert
+      if (result.success > 0 && result.failed > 0) {
+        const message = `${result.success} öğrenci senkronize edildi, ${result.failed} başarısız.`
+        if (onShowToast) {
+          onShowToast(message, 'warning')
+        } else if (toastCallback) {
+          toastCallback(message, 'warning')
+        }
+      } else if (result.success > 0) {
+        const message = `${result.success} öğrenci başarıyla senkronize edildi.`
+        if (onShowToast) {
+          onShowToast(message, 'success')
+        } else if (toastCallback) {
+          toastCallback(message, 'success')
+        }
+      } else if (result.failed > 0) {
+        const message = `${result.failed} öğrenci senkronize edilemedi.`
+        if (onShowToast) {
+          onShowToast(message, 'error')
+        } else if (toastCallback) {
+          toastCallback(message, 'error')
+        }
       }
     } finally {
       setSyncing(false)

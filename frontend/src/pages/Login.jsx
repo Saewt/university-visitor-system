@@ -56,7 +56,7 @@ function Login({ onLogin }) {
   }
 
   return (
-    <div className="login-page">
+    <div className="login-page" id="main-content">
       {/* Background Pattern */}
       <div className="login-bg-pattern">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">

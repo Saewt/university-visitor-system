@@ -175,7 +175,7 @@ function Register({ onSuccess }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f5f5' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f5f5' }} id="main-content">
       {/* Header */}
       <nav style={{
         background: '#366092',

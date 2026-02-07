@@ -1182,6 +1182,64 @@ select.form-control {
   color: var(--text-muted);
 }
 
+/* ============================================
+   ACCESSIBILITY: Focus Styles
+   ============================================ */
+
+/* Focus visible - only show focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse users but keep for keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Button focus styles */
+.btn:focus-visible,
+.btn-logout:focus-visible,
+.nav-tab:focus-visible,
+.navbar-brand:focus-visible,
+.form-control:focus-visible,
+.form-input:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent-color);
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-md) 0;
+  z-index: 9999;
+  font-weight: 600;
+  font-size: 14px;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Ensure interactive elements have cursor pointer */
+button, a, [role="button"] {
+  cursor: pointer;
+}
+
+/* Remove pointer events from disabled elements */
+button:disabled, a[aria-disabled="true"] {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* Responsive Design */
 @media (max-width: 900px) {
   .login-container {

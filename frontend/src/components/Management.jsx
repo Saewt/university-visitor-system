@@ -2,6 +2,12 @@ import { useState } from 'react'
 import UsersList from './UsersList'
 import DepartmentsList from './DepartmentsList'
 
+// Toast callback registry
+let toastCallback = null
+export const registerToastCallback = (callback) => {
+  toastCallback = callback
+}
+
 function Management({ showToast, currentUser }) {
   const [activeSubTab, setActiveSubTab] = useState('users')
 

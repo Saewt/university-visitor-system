@@ -24,7 +24,9 @@ function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <a href="#main-content" className="skip-link">Ana içeriğe atla</a>
+      <Routes>
       <Route path="/login" element={<Login onLogin={(u) => { setUser(u); setIsAuthenticated(true) }} />} />
       <Route path="/register" element={<Register />} />
       <Route
@@ -71,6 +73,7 @@ function App() {
       />
       <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
     </Routes>
+    </>
   )
 }
 

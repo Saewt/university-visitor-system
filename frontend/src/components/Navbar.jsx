@@ -5,8 +5,8 @@ function Navbar({ user, onLogout, activeTab, onTabChange, showTabs = true, tabLa
 
   const labels = tabLabels || {
     dashboard: 'Dashboard',
-    students: 'Öğrenciler',
-    history: 'Geçmiş',
+    students: 'Öğrenci Listesi',
+    history: 'Geçmiş Kayıtlar',
     management: 'Yönetim'
   }
 
@@ -19,9 +19,9 @@ function Navbar({ user, onLogout, activeTab, onTabChange, showTabs = true, tabLa
   }
 
   return (
-    <nav className="navbar">
+    <nav className="navbar" role="navigation" aria-label="Ana navigasyon">
       <div className="navbar-left">
-        <div className="navbar-brand" onClick={handleLogoClick}>
+        <button className="navbar-brand" onClick={handleLogoClick} aria-label="Ana sayfaya dön">
           <div className="university-logo">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
               <rect width="32" height="32" rx="6" fill="#f8f8f8ff" />
@@ -33,7 +33,7 @@ function Navbar({ user, onLogout, activeTab, onTabChange, showTabs = true, tabLa
             <div style={{ fontSize: '14px', fontWeight: '600', letterSpacing: '0.5px' }}>ACIBADEM</div>
             <div style={{ fontSize: '11px', fontWeight: '400', opacity: 0.9 }}>ÜNİVERSİTESİ</div>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="navbar-right">
@@ -112,6 +112,8 @@ function TabButton({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={`nav-tab ${active ? 'active' : ''}`}
+      aria-pressed={active}
+      role="tab"
     >
       {children}
     </button>
